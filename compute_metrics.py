@@ -32,6 +32,7 @@ def compute_repeat_LE(des1,des2,kps1,kps2,GT_H_mat_param,w,h,nbr_trd):
 
 
 
+
     for i in range(kps2.shape[0]):
         kp2 = kps2[i]
 
@@ -43,27 +44,34 @@ def compute_repeat_LE(des1,des2,kps1,kps2,GT_H_mat_param,w,h,nbr_trd):
             kp1_new_within.append((i,kp1_new))
 
 
+    if x1_cnt<=x2_cnt:
+        denorm = x1_cnt
+        for p2 in kp2_new_within:
+            for j in range(len(kps2)):
+                p2_old = kps2[j]
+                # print((p2_old-p2[:2])[0],(p2_old-p2[:2])[1])
+                if np.abs((p2_old-p2[1][:2])[0])<=nbr_trd and np.abs((p2_old-p2[1][:2])[1])<=nbr_trd:
+                    overlap_cnt += 1
+                    distance = np.linalg.norm(p2_old-p2[1][:2])
+                    accu_distance += distance
+                    data_pair = (j,p2_old,p2[0],p2[1][:2])  # maybe add des distance here!
+                    break
+    else:
+        denorm = x2_cnt
+        for p1 in kp1_new_within:
+            for j in range(len(kps1)):
+                p1_old = kps1[j]
+                # print((p2_old-p2[:2])[0],(p2_old-p2[:2])[1])
+                if np.abs((p1_old-p1[1][:2])[0])<=nbr_trd and np.abs((p1_old-p1[1][:2])[1])<=nbr_trd:
+                    overlap_cnt += 1
+                    distance = np.linalg.norm(p1_old-p1[1][:2])
+                    accu_distance += distance
+                    data_pair = (j,p1_old,p1[0],p1[1][:2])  # maybe add des distance here!
+                    break
 
 
-    for p2 in kp2_new_within:
-        for j in range(len(kps2)):
-            p2_old = kps2[j]
-            # print((p2_old-p2[:2])[0],(p2_old-p2[:2])[1])
-            if np.abs((p2_old-p2[1][:2])[0])<=nbr_trd and np.abs((p2_old-p2[1][:2])[1])<=nbr_trd:
-                overlap_cnt += 1
-                distance = np.linalg.norm(p2_old-p2[1][:2])
-                accu_distance += distance
-                data_pair = (j,p2_old,p2[0],p2[1][:2])  # maybe add des distance here!
-                break
 
-
-    if (x1_cnt-x2_cnt)>20:
-        print("error!  the min projection is not based on the transformed img!",x1_cnt,x2_cnt)  #  we assume: the min projection is based on the transformed img! i.e   x1_cnt < x2_cnt
-
-
-
-
-    return x1_cnt,x2_cnt,overlap_cnt,float(overlap_cnt)/x1_cnt,float(accu_distance)/overlap_cnt
+    return x1_cnt,x2_cnt,overlap_cnt,float(overlap_cnt)/denorm,float(accu_distance)/overlap_cnt
 
 
 def compute_HE(GT_H_mat_param,esti_H_mat_param,kps1,des1,w,h):
@@ -106,7 +114,7 @@ def compute_MA(matches,des1,des2,kps1,kps2,GT_H_mat_param,w,h):
 
 
 
-    return matching_accuracy
+    return matching_accuracy,correct_matches_cnt,num4matches
 
 
 
@@ -127,6 +135,9 @@ if __name__=="__main__":
     transform_list = ["rot","scale","blur","illu"]
     transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
 
+    method = "ORB"
+    method = "GFTT_SIFT"
+    method = "AGAST_SIFT"
 
 
     for img_path in ori_img_paths:
@@ -137,10 +148,10 @@ if __name__=="__main__":
 
         for transform,transform_params in zip(transform_list,transform_params_list):
             # transform  = "rot"
-            kps_des_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"_pair//"+"ORB_kps_des"+".npz"
-            Hs_esti_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"_pair//"+"ORB_esti_H"+".npz"
+            kps_des_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"_pair//"+method+"_kps_des"+".npz"
+            Hs_esti_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"_pair//"+method+"_esti_H"+".npz"
             GT_Hs_mat_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"//GT_H_mat.npz"
-            Matches_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"_pair//"+"ORB_matches"+".npz"
+            Matches_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"_pair//"+method+"_matches"+".npz"
 
             kps_des_mat = np.load(kps_des_path)#7
             Hs_esti = np.load(Hs_esti_path)
@@ -174,10 +185,10 @@ if __name__=="__main__":
                 # if Homo_error < 0.1:
                 #     pass
 
-                Matching_accuracy = compute_MA(matches,des1,des2,kps1,kps2,GT_H_mat_param,w,h)
+                Matching_accuracy,correct_cnt,num4matches = compute_MA(matches,des1,des2,kps1,kps2,GT_H_mat_param,w,h)
 
 
-                print("param: ",param," repeat: ",repeatibility," avg_phy_dis: ",avg_loc_distance, " Homo Error: ",Homo_error," matching accu: ",Matching_accuracy)#, "  x1_cnt, x2_cnt, overlap_cnt: ",x1_cnt,x2_cnt,overlap_cnt)
+                print("param: ",param," repeat: ",repeatibility," avg_phy_dis: ",avg_loc_distance, " Homo Error: ",Homo_error," matching accu: ",Matching_accuracy, correct_cnt,num4matches)#, "  x1_cnt, x2_cnt, overlap_cnt: ",x1_cnt,x2_cnt,overlap_cnt)
 
 
 

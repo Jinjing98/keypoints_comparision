@@ -89,7 +89,7 @@ def create_blur_new(ori_img_paths,ori_img_dir,new_img_dir_general):
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
 
-def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1):
+def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
         kps_des_mat = {}
         matches_mat = {}
         H_mat = {}
@@ -97,8 +97,18 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1):
         for new_img_param in transform_params:
             new_img_name = str(new_img_dir)+img_path[:-4]+"\\"+transform+"\\"+str(new_img_param)+".png"
             new_img = cv2.imread(str(new_img_name))
-            kp2, des2 = orb.detectAndCompute(new_img,None)
-            kp2_des2_np = np.zeros((len(kp2),34))
+            new_img = cv2.cvtColor(new_img,cv2.COLOR_BGR2GRAY)
+            if method == "ORB":
+                kp2, des2 = orb.detectAndCompute(new_img,None)
+            if method == "GFTT_SIFT":
+                kp2 = cv2.goodFeaturesToTrack(new_img, maxCorners=200, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
+                kp2 = [cv2.KeyPoint(k[0][0], k[0][1], 1) for k in kp2]  # 1 is detection size ?
+                kp2, des2 = sift.compute(new_img, kp2)   #  200*128
+            if method == "AGAST_SIFT":
+                kp2 = agast.detect(new_img)  #  how to restrict the num of detected kps
+                kp2,des2 = sift.compute(new_img,kp2)
+
+            kp2_des2_np = np.zeros((len(kp2),2+des2.shape[1]))
             id = 0
             for kp in kp2:
                 kp2_des2_np[id] = [kp.pt[0],kp.pt[1]]+list(des2[id])
@@ -106,8 +116,14 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1):
 
             kps_des_mat[str(new_img_param)] = kp2_des2_np
 
+            if method == "ORB":
+                bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+            if method == "GFTT_SIFT" or method == "AGAST_SIFT":
+                bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)  #
 
-            bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+
+
             matches = bf.match(des1,des2)
             matches = sorted(matches, key = lambda x:x.distance)
             num4matches = len(matches)
@@ -130,8 +146,8 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1):
             # if new_img_name == "E:\Datasets\surgical\out_imgs\\18_3\\blur\\12.png":
             #     print("")
             img3 = cv2.drawMatches(img,kp1,new_img,kp2,matches,None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-            img3 = cv2.resize(img3,(1280,360))#720 1280
-            matched_img_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+str(new_img_param)+"_ORB"+".png"
+            img3 = cv2.resize(img3,(img.shape[1],int(img.shape[0]/2)))#720 1280   1280 320
+            matched_img_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+str(new_img_param)+"_"+method+".png"
             cv2.imwrite(matched_img_path,img3)
 
             src_pts = matches_np[:,1:3]
@@ -164,11 +180,11 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1):
 
 
 
-        des_mat_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+"ORB_kps_des"+".npz"
-        matches_mat_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+"ORB_matches"+".npz"
+        des_mat_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+method+"_kps_des"+".npz"
+        matches_mat_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+method+"_matches"+".npz"
         np.savez(des_mat_path,**kps_des_mat)
         np.savez(matches_mat_path,**matches_mat)
-        H_mat_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+"ORB_esti_H"+".npz"
+        H_mat_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+method+"_esti_H"+".npz"
         np.savez(H_mat_path,**H_mat)
 
 
@@ -196,78 +212,57 @@ if __name__=="__main__":
     print("data collection done.\n start processing ...")
 
 
-    for img_path in ori_img_paths:
-        # all4img = list(Path(new_img_dir+img_path[:-4],f"rot\\").rglob("*.png"))
-        img = cv2.imread(ori_img_dir+img_path)
-        orb = cv2.ORB_create(nfeatures=500)
 
-        kp1, des1 = orb.detectAndCompute(img,None)  # maybe less than 500
-        num4kps = len(kp1)
-        kp1_des1_np = np.empty((num4kps,34))
-        id = 0
-        for kp in kp1:
-            kp1_des1_np[id] = [kp.pt[0],kp.pt[1]]+list(des1[id])
-            id += 1
-        kps_des_mat = {}
-        matches_mat = {}
-        kps_des_mat[str(0)] = kp1_des1_np
+    method_list = ["ORB","AGAST_SIFT","GFTT_SIFT"]
+    transform_list = ["rot","scale","blur","illu"]
+    transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
+    method = "ORB"
+    method = "GFTT_SIFT"
+    method = "AGAST_SIFT"
 
 
-        method_list = ["ORB","KP2D"]
-        transform_list = ["rot","scale","blur","illu"]
-        transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
-        method = "ORB"
-        for transform,transform_params in zip(transform_list,transform_params_list):
-            get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1)
+    for method in method_list:
+
+        for img_path in ori_img_paths:
+            # all4img = list(Path(new_img_dir+img_path[:-4],f"rot\\").rglob("*.png"))
+            img = cv2.imread(ori_img_dir+img_path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            if method == "ORB":
+                orb = cv2.ORB_create(nfeatures=200)
+                kp1, des1 = orb.detectAndCompute(img,None)  # maybe less than 500
+            if method == "GFTT_SIFT":
+                sift = cv2.xfeatures2d.SIFT_create()
+                kp1 = cv2.goodFeaturesToTrack(img, maxCorners=200, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
+                kp1 = [cv2.KeyPoint(k[0][0], k[0][1], 1) for k in kp1]  # 1 is detection size
+                kp1,des1 = sift.compute(img, kp1)   #  200*128
+
+            if method == "AGAST_SIFT":
+                sift = cv2.xfeatures2d.SIFT_create()
+                AGAST_TYPES = {
+                                '5_8': cv2.AgastFeatureDetector_AGAST_5_8,
+                                'OAST_9_16': cv2.AgastFeatureDetector_OAST_9_16,
+                                '7_12_d': cv2.AgastFeatureDetector_AGAST_7_12d,
+                                '7_12_s': cv2.AgastFeatureDetector_AGAST_7_12s }
+
+                agast = cv2.AgastFeatureDetector_create(threshold=10, nonmaxSuppression=True, type=AGAST_TYPES['OAST_9_16'])
+                kp1 = agast.detect(img)
+                kp1,des1 = sift.compute(img,kp1)
+
+            num4kps = len(kp1)
+            kp1_des1_np = np.empty((num4kps,2+des1.shape[1]))
+            id = 0
+            for kp in kp1:
+                kp1_des1_np[id] = [kp.pt[0],kp.pt[1]]+list(des1[id])
+                id += 1
+            kps_des_mat = {}
+            matches_mat = {}
+            kps_des_mat[str(0)] = kp1_des1_np
 
 
 
-
-
-        #
-        #
-        #
-        #
-        # for new_img_param in [30,60,90,120,150,180]:
-        #     new_img_name = str(new_img_dir)+img_path[:-4]+"\\rot\\"+str(new_img_param)+".png"
-        #     new_img = cv2.imread(str(new_img_name))
-        #     kp2, des2 = orb.detectAndCompute(new_img,None)
-        #     kp2_des2_np = np.zeros_like(kp1_des1_np)
-        #     id = 0
-        #     for kp in kp2:
-        #         kp2_des2_np[id] = list(kp.pt).append(des2[id])
-        #         id += 1
-        #     kps_des_mat[str(new_img_param)] = kp2_des2_np
-        #
-        #
-        #     bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        #     matches = bf.match(des1,des2)
-        #     matches = sorted(matches, key = lambda x:x.distance)
-        #     num4matches = 100
-        #     matches = matches[:num4matches]
-        #     # print(matches[0].queryIdx)
-        #
-        #     idx = 0
-        #     matches_np = np.empty((num4matches,3))
-        #     for match in matches:
-        #         matches_np[idx] = [match.queryIdx,match.trainIdx,match.distance]
-        #         idx += 1
-        #     matches_mat[str(new_img_param)] = matches_np
-        #
-        #     if len(matches) <100:
-        #         print("Warning! less than 100 good matches!")
-        #     img3 = cv2.drawMatches(img,kp1,new_img,kp2,matches,None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-        #     img3 = cv2.resize(img3,(1280,360))#720 1280
-        #     matched_img_path = str(new_img_dir)+img_path[:-4]+"\\rot_pair\\"+str(new_img_param)+"_ORB"+".png"
-        #     cv2.imwrite(matched_img_path,img3)
-        #
-        #
-        # des_mat_path = str(new_img_dir)+img_path[:-4]+"\\rot_pair\\"+"ORB_kps_des"+".npz"
-        # matches_mat_path = str(new_img_dir)+img_path[:-4]+"\\rot_pair\\"+"ORB_matches"+".npz"
-        # np.savez(des_mat_path,**kps_des_mat)
-        # np.savez(matches_mat_path,**matches_mat)
-
-
+            for transform,transform_params in zip(transform_list,transform_params_list):
+                get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method)
 
 
 
