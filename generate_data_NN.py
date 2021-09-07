@@ -21,7 +21,7 @@ def create_rot_new(ori_img_paths,ori_img_dir,new_img_dir_general):
             rotate = cv2.getRotationMatrix2D((x/2,y/2),ang,1)  # the 3rd row is  0 0 1
             #  it is the same as get affine transform?
             img_rot = cv2.warpAffine(img,rotate,(x,y))
-            cv2.imwrite(str(new_img_dir)+"\\"+str(ang)+".png", img_rot[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
+            cv2.imwrite(str(new_img_dir)+"\\"+str(ang)+".png", img_rot)
             GT_H_mat[str(ang)] = rotate
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
@@ -40,7 +40,7 @@ def create_scale_new(ori_img_paths,ori_img_dir,new_img_dir_general):
         for scale in [0.25,0.5,0.75,1.25,1.5,1.75]:
             rotate = cv2.getRotationMatrix2D((x/2,y/2),0,scale)  # the 3rd row is  0 0 1
             img_scale = cv2.warpAffine(img,rotate,(x,y))
-            cv2.imwrite(str(new_img_dir)+"\\"+str(scale)+".png", img_scale[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
+            cv2.imwrite(str(new_img_dir)+"\\"+str(scale)+".png", img_scale)
             GT_H_mat[str(scale)] = rotate
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
@@ -63,7 +63,7 @@ def create_illu_new(ori_img_paths,ori_img_dir,new_img_dir_general):# gamma
             table = np.array([((i / 255.0) ** invGamma) * 255
                                 for i in np.arange(0, 256)]).astype("uint8")
             img_illu = cv2.LUT(img, table)
-            cv2.imwrite(str(new_img_dir)+"\\"+str(gamma)+".png", img_illu[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
+            cv2.imwrite(str(new_img_dir)+"\\"+str(gamma)+".png", img_illu)
             rotate = cv2.getRotationMatrix2D((x/2,y/2),0,1)
             GT_H_mat[str(gamma)] = rotate
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
@@ -83,7 +83,7 @@ def create_blur_new(ori_img_paths,ori_img_dir,new_img_dir_general):
         y,x = img.shape[:2]
         for size in [(2,2),(4,4),(6,6),(8,8),(10,10),(12,12)]:
             img_blur = cv2.blur(img,size)
-            cv2.imwrite(str(new_img_dir)+"\\"+str(size[0])+".png", img_blur[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
+            cv2.imwrite(str(new_img_dir)+"\\"+str(size[0])+".png", img_blur)
             rotate = cv2.getRotationMatrix2D((x/2,y/2),0,1)
             GT_H_mat[str(size[0])] = rotate
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
@@ -101,7 +101,7 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
             if method == "ORB":
                 kp2, des2 = orb.detectAndCompute(new_img,None)
             if method == "GFTT_SIFT":
-                kp2 = cv2.goodFeaturesToTrack(new_img, maxCorners=num_feature, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
+                kp2 = cv2.goodFeaturesToTrack(new_img, maxCorners=200, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
                 kp2 = [cv2.KeyPoint(k[0][0], k[0][1], 1) for k in kp2]  # 1 is detection size ?
                 kp2, des2 = sift.compute(new_img, kp2)   #  200*128
             if method == "AGAST_SIFT":
@@ -127,7 +127,7 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
             matches = bf.match(des1,des2)
             matches = sorted(matches, key = lambda x:x.distance)
             num4matches = len(matches)
-            matches = matches[:num4matches]#?
+            matches = matches[:num4matches]
             # print(matches[0].queryIdx)
 
             idx = 0
@@ -192,12 +192,12 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
 
 if __name__=="__main__":
 
+    ori_img_dir = r"E:\Datasets\NCT\ori_imgs\\"
+    new_img_dir = r"E:\Datasets\NCT\out_imgs\\"
+    #
     ori_img_dir = r"E:\Datasets\surgical\ori_imgs\\"
-
     new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
-    final_ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
-    rec_h_half = 50
-    rec_w_half = 80
+
 
 
 
@@ -219,8 +219,6 @@ if __name__=="__main__":
     method = "ORB"
     method = "GFTT_SIFT"
     method = "AGAST_SIFT"
-    num_feature = 200
-
 
 
     for method in method_list:
@@ -231,15 +229,15 @@ if __name__=="__main__":
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
             if method == "ORB":
-                orb = cv2.ORB_create(nfeatures=num_feature)
+                orb = cv2.ORB_create(nfeatures=200)
                 kp1, des1 = orb.detectAndCompute(img,None)  # maybe less than 500
             if method == "GFTT_SIFT":
                 sift = cv2.xfeatures2d.SIFT_create()
-                kp1 = cv2.goodFeaturesToTrack(img, maxCorners=num_feature, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
+                kp1 = cv2.goodFeaturesToTrack(img, maxCorners=200, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
                 kp1 = [cv2.KeyPoint(k[0][0], k[0][1], 1) for k in kp1]  # 1 is detection size
                 kp1,des1 = sift.compute(img, kp1)   #  200*128
 
-            if method == "AGAST_SIFT":  # how to constraint the num of feature here?
+            if method == "AGAST_SIFT":
                 sift = cv2.xfeatures2d.SIFT_create()
                 AGAST_TYPES = {
                                 '5_8': cv2.AgastFeatureDetector_AGAST_5_8,
