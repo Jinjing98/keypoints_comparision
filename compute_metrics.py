@@ -132,15 +132,46 @@ if __name__=="__main__":
     ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
     new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
 
-    nbr_trd = 1  #  a higher trd can is not less strict, consequently the repeatabiltiy gets improved.
+    nbr_trd = 3  #  a higher trd can is not less strict, consequently the repeatabiltiy gets improved.
 
     ori_img_paths = os.listdir(ori_img_dir)
-    transform_list = ["rot","scale","blur","illu"]
-    transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
+    transform_list = ["rot","scale","blur","illu","mix"]
+    # transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
+
+    rot_list = [10,15,20,80,85,90]
+    scale_list = [0.7,0.8,0.9,1.1,1.2,1.3]
+    blur_list = [2,3,4,5,6,7]
+    illu_list = [0.4,0.6,0.8,1.2,1.4,1.6]
+    mix_list = [str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur) for p_rot,p_scale,p_illu,p_blur in zip(rot_list,scale_list,illu_list,blur_list)]#str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur)
+    transform_params_list = [rot_list,scale_list,blur_list,illu_list,mix_list]
     methods_list = ["SuperPoint","ORB","GFTT_SIFT","AGAST_SIFT"]
+
+                # repeatibility_list = []
+            # avg_loc_distance_list = []
+            # Homo_error_list = []
+            # Matching_accuracy_list = []
+
+
+
+
+        #
+        # rot_weak_perform = {}
+        # rot_strong_perform = {}
+        # scale_perform = {}
+        # illu_perform = {}
+        # global_avg_perform = {}
+        #
+        # mix_perform = {}
+
+
     for method in methods_list:
         print("Evaluating all imgs wrt method:  "+method,"\n")
 
+
+        repeatibility_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}  # 4 elements wrt to 4 transforms given certrain kps method, each element is a list with length of total imgs
+        avg_loc_distance_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
+        Homo_error_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
+        Matching_accuracy_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
 
         for img_path in ori_img_paths:
             # all4img = list(Path(new_img_dir+img_path[:-4],f"rot\\").rglob("*.png"))
@@ -161,6 +192,12 @@ if __name__=="__main__":
                 Matches = np.load(Matches_path)
                 kps_des_mat_ori = kps_des_mat["0"]
 
+
+                tem_repeatibility_list = []
+                tem_avg_loc_distance_list = []
+                tem_Homo_error_list = []
+                tem_Matching_accuracy_list = []
+
                 for param in transform_params:
 
                     try:
@@ -179,27 +216,49 @@ if __name__=="__main__":
                     des2 = kps_des_mat_param[:,2:]
 
                     x1_cnt,x2_cnt,overlap_cnt,repeatibility,avg_loc_distance = compute_repeat_LE(des1,des2,kps1,kps2,GT_H_mat_param,w,h,nbr_trd)#   nbr_thrd can be 1 /2/3 pixels
-
-                    # tolerance_trd = 1
                     Homo_error = compute_HE(GT_H_mat_param,esti_H_mat_param,kps1,des1,w,h)
-                        # if Homo_error > 100:
-                        #     im_out = cv2.warpPerspective(img, esti_H_mat_param,(img.shape[1],img.shape[0])) #new_img
-                        #     cv2.imshow("",im_out)
-                        #     cv2.waitKey(0)
-                        # if Homo_error < 0.1:
-                        #     pass
-
                     Matching_accuracy,correct_cnt,num4matches = compute_MA(matches,des1,des2,kps1,kps2,GT_H_mat_param,w,h)
+
+
+
+                    tem_repeatibility_list.append(repeatibility)
+                    tem_avg_loc_distance_list.append(avg_loc_distance)
+                    tem_Homo_error_list.append(Homo_error)
+                    tem_Matching_accuracy_list.append(Matching_accuracy)
+
 
                     if repeatibility is not None:
                         print("param: ",param," repeat: ",repeatibility," avg_phy_dis: ",avg_loc_distance, " Homo Error: ",Homo_error," matching accu: ",Matching_accuracy, correct_cnt,num4matches)#, "  x1_cnt, x2_cnt, overlap_cnt: ",x1_cnt,x2_cnt,overlap_cnt)
                     else:
                         print("param: ",param," Ooops, denorm=0 or overlap_cnt =0,  skip... ")
+                #certain method: for certain img, certain type of transformation we get one set of avg metrics
+                repeatibility_avg = np.nanmean(np.array(tem_repeatibility_list,dtype=np.float64))
+                avg_loc_distance_avg = np.nanmean(np.array(tem_avg_loc_distance_list,dtype=np.float64))
+                Homo_error_avg = np.nanmean(np.array(tem_Homo_error_list,dtype=np.float64))
+                Matching_accuracy_avg = np.nanmean(np.array(tem_Matching_accuracy_list,dtype=np.float64))
+
+                repeatibility_dict[transform].append(repeatibility_avg)
+                avg_loc_distance_dict[transform].append(avg_loc_distance_avg)
+                Homo_error_dict[transform].append(Homo_error_avg)
+                Matching_accuracy_dict[transform].append(Matching_accuracy_avg)
+                #
+                #
+
+
 
 
 
                 print("method: ",method,"done with "+transform +" for img: ",img_path,"\n")
 
+        #performance of certain kps method
+
+        print("for method : ",method, " display the metrics for different transformation:  reap LE HE MA ")
+        for transform in transform_list:
+            print(transform,np.nanmean(np.array(repeatibility_dict[transform],dtype=np.float64)),
+                                np.nanmean(np.array(avg_loc_distance_dict[transform],dtype=np.float64)),
+                                np.nanmean(np.array(Homo_error_dict[transform],dtype=np.float64)),
+                                np.nanmean(np.array(Matching_accuracy_dict[transform],dtype=np.float64)))
+        #
 
 
 
