@@ -5,6 +5,17 @@ import os
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
+import argparse
+from pathlib import Path
+
+import cv2
+import numpy as np
+# import tensorflow as tf  # noqa: E402
+import tensorflow.compat.v1 as tf
+tf.disable_v2_behavior()
+from match_features_demo import  extract_superpoint_keypoints_and_descriptors, preprocess_image
+
+
 
 def create_rot_new(ori_img_paths,ori_img_dir,new_img_dir_general):
     GT_H_mat = {}
@@ -89,6 +100,15 @@ def create_blur_new(ori_img_paths,ori_img_dir,new_img_dir_general):
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
 
+
+def create_final_ori(ori_img_paths,ori_img_dir,final_ori_img_dir):
+    for img_path in ori_img_paths:
+        img = cv2.imread(ori_img_dir+img_path)
+        y,x = img.shape[:2]
+        cv2.imwrite(str(final_ori_img_dir)+"\\"+img_path, img[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])
+
+
+
 def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
         kps_des_mat = {}
         matches_mat = {}
@@ -96,8 +116,8 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
         kps_des_mat[str(0)] = kp1_des1_np
         for new_img_param in transform_params:
             new_img_name = str(new_img_dir)+img_path[:-4]+"\\"+transform+"\\"+str(new_img_param)+".png"
-            new_img = cv2.imread(str(new_img_name))
-            new_img = cv2.cvtColor(new_img,cv2.COLOR_BGR2GRAY)
+            new_img_color = cv2.imread(str(new_img_name))
+            new_img = cv2.cvtColor(new_img_color,cv2.COLOR_BGR2GRAY)
             if method == "ORB":
                 kp2, des2 = orb.detectAndCompute(new_img,None)
             if method == "GFTT_SIFT":
@@ -107,75 +127,77 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
             if method == "AGAST_SIFT":
                 kp2 = agast.detect(new_img)  #  how to restrict the num of detected kps
                 kp2,des2 = sift.compute(new_img,kp2)
+            if method == "SuperPoint":
+                new_img_cal = preprocess_image(str(new_img_name))
+                    # pridict!
+                out2 = sess.run([output_prob_nms_tensor, output_desc_tensors],
+                                    feed_dict={input_img_tensor: np.expand_dims(new_img_cal, 0)})
+                keypoint_map2 = np.squeeze(out2[0])
+                descriptor_map2 = np.squeeze(out2[1])
 
-            kp2_des2_np = np.zeros((len(kp2),2+des2.shape[1]))
-            id = 0
-            for kp in kp2:
-                kp2_des2_np[id] = [kp.pt[0],kp.pt[1]]+list(des2[id])
-                id += 1
-
-            kps_des_mat[str(new_img_param)] = kp2_des2_np
-
-            if method == "ORB":
-                bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-            if method == "GFTT_SIFT" or method == "AGAST_SIFT":
-                bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)  #
+                kp2, des2 = extract_superpoint_keypoints_and_descriptors(
+                        keypoint_map2, descriptor_map2, keep_k_best)
 
 
 
 
-            matches = bf.match(des1,des2)
-            matches = sorted(matches, key = lambda x:x.distance)
-            num4matches = len(matches)
-            matches = matches[:num4matches]#?
-            # print(matches[0].queryIdx)
 
-            idx = 0
-            matches_np = np.empty((num4matches,7))
-            for match in matches:
-                # matches_np[idx] = [match.queryIdx,match.trainIdx,match.distance]
-                #kp1[m.queryIdx].pt
 
-                matches_np[idx] = [match.queryIdx,kp1[match.queryIdx].pt[0],kp1[match.queryIdx].pt[1],match.trainIdx,kp2[match.trainIdx].pt[0],kp2[match.trainIdx].pt[1],match.distance]
+            if len(kp2) > dict_trd_num_kps2:   #  not put in dict if kps2 num too less
+                kp2_des2_np = np.zeros((len(kp2),2+des2.shape[1]))
+                id = 0
+                for kp in kp2:
+                    kp2_des2_np[id] = [kp.pt[0],kp.pt[1]]+list(des2[id])
+                    id += 1
+                kps_des_mat[str(new_img_param)] = kp2_des2_np
 
-                idx += 1
-            matches_mat[str(new_img_param)] = matches_np
-
-            if len(matches) <20:
-                print("Warning! "+str(len(matches))+" is less than 20 good matches!"+"\n the path is : "+ new_img_name)
-            # if new_img_name == "E:\Datasets\surgical\out_imgs\\18_3\\blur\\12.png":
-            #     print("")
-            img3 = cv2.drawMatches(img,kp1,new_img,kp2,matches,None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-            img3 = cv2.resize(img3,(img.shape[1],int(img.shape[0]/2)))#720 1280   1280 320
-            matched_img_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+str(new_img_param)+"_"+method+".png"
-            cv2.imwrite(matched_img_path,img3)
-
-            src_pts = matches_np[:,1:3]
-            dst_pts = matches_np[:,4:6]
-
-            H,status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
-            # im_out = cv2.warpPerspective(img, H,(img.shape[1],img.shape[0])) #new_img
-            H_mat[str(new_img_param)] = H
+                if method == "ORB":
+                    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+                if method == "GFTT_SIFT" or method == "AGAST_SIFT" or method == "SuperPoint":
+                    bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
 
 
 
-            # if transform == "rot":
-            #     src_pts = matches_np[:,1:3]
-            #     dst_pts = matches_np[:,4:6]
-            #
-            #     H,status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
-            #     # im_out = cv2.warpPerspective(img, H,(img.shape[1],img.shape[0])) #new_img
-            #     H_mat[str(new_img_param)] = H
-            #     # GT_H_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"\\GT_H_mat.npz"
-            #     # GT_H_mat = np.load(GT_H_path)
-            #     #  src_pts_xy dst_pts_xy  gt_H
-            # if transform == "scale":
-            #     src_pts = matches_np[:,1:3]
-            #     dst_pts = matches_np[:,4:6]
-            #
-            #     H,status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
-            #     # im_out = cv2.warpPerspective(img, H,(img.shape[1],img.shape[0])) #new_img
-            #     H_mat[str(new_img_param)] = H
+
+
+                matches = bf.match(des1,des2)
+                matches = sorted(matches, key = lambda x:x.distance)
+                num4matches = len(matches)
+                matches = matches[:num4matches]#?
+                # print(matches[0].queryIdx)
+
+                idx = 0
+                matches_np = np.empty((num4matches,7))
+                for match in matches:
+                    # matches_np[idx] = [match.queryIdx,match.trainIdx,match.distance]
+                    #kp1[m.queryIdx].pt
+
+                    matches_np[idx] = [match.queryIdx,kp1[match.queryIdx].pt[0],kp1[match.queryIdx].pt[1],match.trainIdx,kp2[match.trainIdx].pt[0],kp2[match.trainIdx].pt[1],match.distance]
+
+                    idx += 1
+                matches_mat[str(new_img_param)] = matches_np
+
+                # if len(matches) <8:
+                #     print("Warning! "+str(len(matches))+" is less than 8 matches!"+"\n the path is : "+ new_img_name)
+
+                img3 = cv2.drawMatches(img,kp1,new_img,kp2,matches,None,flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+                img3 = cv2.resize(img3,(img.shape[1],int(img.shape[0]/2)))#720 1280   1280 320
+                matched_img_path = str(new_img_dir)+img_path[:-4]+"\\"+transform+"_pair\\"+str(new_img_param)+"_"+method+".png"
+                cv2.imwrite(matched_img_path,img3)
+
+                src_pts = matches_np[:,1:3]
+                dst_pts = matches_np[:,4:6]
+
+                H,status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
+                # im_out = cv2.warpPerspective(img, H,(img.shape[1],img.shape[0])) #new_img
+                H_mat[str(new_img_param)] = H
+
+            else:
+                print("less than ",dict_trd_num_kps2," keypoints detected in this img2! ignore this frames pair! ","img: ",img_path[:-4]," setting: ",method,transform,new_img_param,)
+            #     kps_des_mat[str(new_img_param)] = None
+            #     matches_mat[str(new_img_param)] = None
+            #     H_mat[str(new_img_param)] = None
+
 
 
 
@@ -196,8 +218,10 @@ if __name__=="__main__":
 
     new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
     final_ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
-    rec_h_half = 50
-    rec_w_half = 80
+    EXPER_PATH=r'E:\Google Drive\\files.sem3\NCT\Reuben_lab\keypoint_detector_descriptor_evaluator-main\models\SuperPoint\pretrained_models'
+    rec_h_half = 64  #unit of 8.  e.g 64
+    rec_w_half = 128#  e.g. 128
+    dict_trd_num_kps2 = 5
 
 
 
@@ -209,11 +233,17 @@ if __name__=="__main__":
     create_illu_new(ori_img_paths,ori_img_dir,new_img_dir)
     create_blur_new(ori_img_paths,ori_img_dir,new_img_dir)
 
+    create_final_ori(ori_img_paths,ori_img_dir,final_ori_img_dir)
+
+    # a short cut to reduce the number of editing
+    ori_img_dir = final_ori_img_dir
+
+
     print("data collection done.\n start processing ...")
 
 
 
-    method_list = ["ORB","AGAST_SIFT","GFTT_SIFT"]
+    method_list = ["SuperPoint","ORB","AGAST_SIFT","GFTT_SIFT"]
     transform_list = ["rot","scale","blur","illu"]
     transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
     method = "ORB"
@@ -221,50 +251,85 @@ if __name__=="__main__":
     method = "AGAST_SIFT"
     num_feature = 200
 
+    #load model
+    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(description='Compute the homography \
+            between two images with the SuperPoint feature matches.')
+    parser.add_argument('--k_best', type=int, default=200,
+                        help='Maximum number of keypoints to keep \
+                        (default: 1000)')
+    args = parser.parse_args()
+
+    weights_name = "sp_v6"#args.weights_name""
+    keep_k_best = args.k_best
+
+    weights_root_dir = Path(EXPER_PATH, 'saved_models')
+    weights_root_dir.mkdir(parents=True, exist_ok=True)
+    weights_dir = Path(weights_root_dir, weights_name)
+
+    graph = tf.Graph()
+    with tf.Session(graph=graph) as sess:
+        tf.saved_model.loader.load(sess,
+                                   [tf.saved_model.tag_constants.SERVING],#r"E:\Google Drive\\files.sem3\NCT\Reuben_lab\keypoint_detector_descriptor_evaluator-main\models\SuperPoint\pretrained_models\sp_v6.tar")
+                                   str(weights_dir))
+
+        input_img_tensor = graph.get_tensor_by_name('superpoint/image:0')
+        output_prob_nms_tensor = graph.get_tensor_by_name(
+            'superpoint/prob_nms:0')
+        output_desc_tensors = graph.get_tensor_by_name(
+            'superpoint/descriptors:0')
 
 
-    for method in method_list:
+        for method in method_list:
 
-        for img_path in ori_img_paths:
-            # all4img = list(Path(new_img_dir+img_path[:-4],f"rot\\").rglob("*.png"))
-            img = cv2.imread(ori_img_dir+img_path)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            for img_path in ori_img_paths:
+                # all4img = list(Path(new_img_dir+img_path[:-4],f"rot\\").rglob("*.png"))
+                img = cv2.imread(ori_img_dir+img_path)
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                # img = preprocess_image(ori_img_dir+img_path)
 
-            if method == "ORB":
-                orb = cv2.ORB_create(nfeatures=num_feature)
-                kp1, des1 = orb.detectAndCompute(img,None)  # maybe less than 500
-            if method == "GFTT_SIFT":
-                sift = cv2.xfeatures2d.SIFT_create()
-                kp1 = cv2.goodFeaturesToTrack(img, maxCorners=num_feature, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
-                kp1 = [cv2.KeyPoint(k[0][0], k[0][1], 1) for k in kp1]  # 1 is detection size
-                kp1,des1 = sift.compute(img, kp1)   #  200*128
+                if method == "ORB":
+                    orb = cv2.ORB_create(nfeatures=num_feature)
+                    kp1, des1 = orb.detectAndCompute(img,None)  # maybe less than 500
+                if method == "GFTT_SIFT":
+                    sift = cv2.xfeatures2d.SIFT_create()
+                    kp1 = cv2.goodFeaturesToTrack(img, maxCorners=num_feature, qualityLevel=0.01,minDistance=10)#max_corners=25, quality_level=0.01, min_distance=10, detection_size=1
+                    kp1 = [cv2.KeyPoint(k[0][0], k[0][1], 1) for k in kp1]  # 1 is detection size
+                    kp1,des1 = sift.compute(img, kp1)   #  200*128
 
-            if method == "AGAST_SIFT":  # how to constraint the num of feature here?
-                sift = cv2.xfeatures2d.SIFT_create()
-                AGAST_TYPES = {
-                                '5_8': cv2.AgastFeatureDetector_AGAST_5_8,
-                                'OAST_9_16': cv2.AgastFeatureDetector_OAST_9_16,
-                                '7_12_d': cv2.AgastFeatureDetector_AGAST_7_12d,
-                                '7_12_s': cv2.AgastFeatureDetector_AGAST_7_12s }
+                if method == "AGAST_SIFT":  # how to constraint the num of feature here?
+                    sift = cv2.xfeatures2d.SIFT_create()
+                    AGAST_TYPES = {
+                                    '5_8': cv2.AgastFeatureDetector_AGAST_5_8,
+                                    'OAST_9_16': cv2.AgastFeatureDetector_OAST_9_16,
+                                    '7_12_d': cv2.AgastFeatureDetector_AGAST_7_12d,
+                                    '7_12_s': cv2.AgastFeatureDetector_AGAST_7_12s }
 
-                agast = cv2.AgastFeatureDetector_create(threshold=10, nonmaxSuppression=True, type=AGAST_TYPES['OAST_9_16'])
-                kp1 = agast.detect(img)
-                kp1,des1 = sift.compute(img,kp1)
+                    agast = cv2.AgastFeatureDetector_create(threshold=10, nonmaxSuppression=True, type=AGAST_TYPES['OAST_9_16'])
+                    kp1 = agast.detect(img)
+                    kp1,des1 = sift.compute(img,kp1)
+                if method == "SuperPoint":
+                        img1 = preprocess_image(ori_img_dir+img_path)
+                        # pridict!
+                        out1 = sess.run([output_prob_nms_tensor, output_desc_tensors],
+                                        feed_dict={input_img_tensor: np.expand_dims(img1, 0)})
+                        keypoint_map1 = np.squeeze(out1[0])
+                        descriptor_map1 = np.squeeze(out1[1])
 
-            num4kps = len(kp1)
-            kp1_des1_np = np.empty((num4kps,2+des1.shape[1]))
-            id = 0
-            for kp in kp1:
-                kp1_des1_np[id] = [kp.pt[0],kp.pt[1]]+list(des1[id])
-                id += 1
-            kps_des_mat = {}
-            matches_mat = {}
-            kps_des_mat[str(0)] = kp1_des1_np
+                        kp1, des1 = extract_superpoint_keypoints_and_descriptors(
+                            keypoint_map1, descriptor_map1, keep_k_best)
 
-
-
-            for transform,transform_params in zip(transform_list,transform_params_list):
-                get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method)
+                num4kps = len(kp1)
+                kp1_des1_np = np.empty((num4kps,2+des1.shape[1]))
+                id = 0
+                for kp in kp1:
+                    kp1_des1_np[id] = [kp.pt[0],kp.pt[1]]+list(des1[id])
+                    id += 1
+                kps_des_mat = {}
+                matches_mat = {}
+                kps_des_mat[str(0)] = kp1_des1_np
+                for transform,transform_params in zip(transform_list,transform_params_list):
+                    get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method)
 
 
 
