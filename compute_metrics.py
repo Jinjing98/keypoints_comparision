@@ -132,7 +132,7 @@ if __name__=="__main__":
     ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
     new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
 
-    nbr_trd = 3  #  a higher trd can is not less strict, consequently the repeatabiltiy gets improved.
+    nbr_trd = 5 #[1,2,3,4,5,6pixels] #  a higher trd can is not less strict, consequently the repeatabiltiy gets improved.
 
     ori_img_paths = os.listdir(ori_img_dir)
     transform_list = ["rot","scale","blur","illu","mix"]
@@ -146,23 +146,10 @@ if __name__=="__main__":
     transform_params_list = [rot_list,scale_list,blur_list,illu_list,mix_list]
     methods_list = ["SuperPoint","ORB","GFTT_SIFT","AGAST_SIFT"]
 
-                # repeatibility_list = []
-            # avg_loc_distance_list = []
-            # Homo_error_list = []
-            # Matching_accuracy_list = []
-
-
-
-
-        #
-        # rot_weak_perform = {}
-        # rot_strong_perform = {}
-        # scale_perform = {}
-        # illu_perform = {}
-        # global_avg_perform = {}
-        #
-        # mix_perform = {}
-
+    all_repeatibility_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}  # in the order of M methods  rot:[M values]  ...
+    all_avg_loc_distance_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
+    all_Homo_error_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
+    all_Matching_accuracy_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
 
     for method in methods_list:
         print("Evaluating all imgs wrt method:  "+method,"\n")
@@ -172,6 +159,8 @@ if __name__=="__main__":
         avg_loc_distance_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
         Homo_error_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
         Matching_accuracy_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
+
+
 
         for img_path in ori_img_paths:
             # all4img = list(Path(new_img_dir+img_path[:-4],f"rot\\").rglob("*.png"))
@@ -241,12 +230,6 @@ if __name__=="__main__":
                 avg_loc_distance_dict[transform].append(avg_loc_distance_avg)
                 Homo_error_dict[transform].append(Homo_error_avg)
                 Matching_accuracy_dict[transform].append(Matching_accuracy_avg)
-                #
-                #
-
-
-
-
 
                 print("method: ",method,"done with "+transform +" for img: ",img_path,"\n")
 
@@ -254,14 +237,24 @@ if __name__=="__main__":
 
         print("for method : ",method, " display the metrics for different transformation:  reap LE HE MA ")
         for transform in transform_list:
-            print(transform,np.nanmean(np.array(repeatibility_dict[transform],dtype=np.float64)),
-                                np.nanmean(np.array(avg_loc_distance_dict[transform],dtype=np.float64)),
-                                np.nanmean(np.array(Homo_error_dict[transform],dtype=np.float64)),
-                                np.nanmean(np.array(Matching_accuracy_dict[transform],dtype=np.float64)))
-        #
+            avg_rep = np.nanmean(np.array(repeatibility_dict[transform],dtype=np.float64))
+            avg_LE = np.nanmean(np.array(avg_loc_distance_dict[transform],dtype=np.float64))
+            avg_HE = np.nanmean(np.array(Homo_error_dict[transform],dtype=np.float64))
+            avg_MA = np.nanmean(np.array(Matching_accuracy_dict[transform],dtype=np.float64))
+            print(transform,avg_rep,avg_LE,avg_HE,avg_MA)
+
+            all_repeatibility_dict[transform].append(avg_rep)
+            all_avg_loc_distance_dict[transform].append(avg_LE)
+            all_Homo_error_dict[transform].append(avg_HE)
+            all_Matching_accuracy_dict[transform].append(avg_MA)
 
 
 
+        # in the order of methods_list for each sub list in the dict
+        np.savez(new_img_dir+"all_repeatibility_dict_trd"+str(nbr_trd)+".npz",**all_repeatibility_dict)
+        np.savez(new_img_dir+"all_avg_loc_distance_dict_trd"+str(nbr_trd)+".npz",**all_avg_loc_distance_dict)
+        np.savez(new_img_dir+"all_Homo_error_dict_trd"+str(nbr_trd)+".npz",**all_Homo_error_dict)
+        np.savez(new_img_dir+"all_Matching_accuracy_dict_trd"+str(nbr_trd)+".npz",**all_Matching_accuracy_dict)
 
 
 

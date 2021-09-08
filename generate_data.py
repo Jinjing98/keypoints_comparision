@@ -97,9 +97,32 @@ def create_blur_new(ori_img_paths,ori_img_dir,new_img_dir_general ):
             img_blur = cv2.blur(img,size)
             cv2.imwrite(str(new_img_dir)+"\\"+str(size[0])+".png", img_blur[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
             rotate = cv2.getRotationMatrix2D((x/2,y/2),0,1)
+            GT_H_mat[str(size[0])] = rotate  #c
+        GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
+        np.savez(GT_H_mat_path,**GT_H_mat)
+
+
+def create_proj_new(ori_img_paths,ori_img_dir,new_img_dir_general ):
+    GT_H_mat = {}
+    for img_path in ori_img_paths:
+        img = cv2.imread(ori_img_dir+img_path)
+        new_img_dir = Path(new_img_dir_general+"/"+img_path[:-3], f"proj/")
+        new_img_dir.mkdir(parents = True, exist_ok = True)
+        new_img_dir_pair = Path(new_img_dir_general+"/"+img_path[:-3], f"proj_pair/")
+        new_img_dir_pair.mkdir(parents = True, exist_ok = True)
+
+        y,x = img.shape[:2]
+        for param in proj_list:#[(2,2),(4,4),(6,6),(8,8),(10,10),(12,12)]:
+            # size = (size,size)
+            # img_blur = cv2.blur(img,size)
+            img_proj =
+            cv2.imwrite(str(new_img_dir)+"\\"+str(size[0])+".png", img_proj[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
+            rotate = cv2.getRotationMatrix2D((x/2,y/2),0,1)
             GT_H_mat[str(size[0])] = rotate
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
+
+
 
 
 def create_mix_new(ori_img_paths,ori_img_dir,new_img_dir_general):
