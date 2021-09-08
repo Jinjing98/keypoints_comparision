@@ -14,7 +14,7 @@ def compute_repeat_LE(des1,des2,kps1,kps2,GT_H_mat_param,w,h,nbr_trd):
     overlap_cnt = 0
     accu_distance = 0
 
-    GT_H_mat_param =  np.vstack((GT_H_mat_param,np.array((0,0,1))))
+    # GT_H_mat_param =  np.vstack((GT_H_mat_param,np.array((0,0,1))))
     GT_H_mat_param_inv = np.linalg.inv(np.matrix(GT_H_mat_param))
     kp2_new_within = []
     kp1_new_within = []
@@ -23,6 +23,7 @@ def compute_repeat_LE(des1,des2,kps1,kps2,GT_H_mat_param,w,h,nbr_trd):
         kp1 = kps1[i]
 
         kp2_new = np.matmul(GT_H_mat_param,np.hstack((kp1,1)))
+        kp2_new = kp2_new/kp2_new[2]
 
 
         if kp2_new[0]>=0 and kp2_new[0]<=w and kp2_new[1]>=0 and kp2_new[1]<=h: #this can avoid the bordering effect?
@@ -37,6 +38,8 @@ def compute_repeat_LE(des1,des2,kps1,kps2,GT_H_mat_param,w,h,nbr_trd):
         kp2 = kps2[i]
 
         kp1_new = np.matmul(np.array(GT_H_mat_param_inv),np.hstack((kp2,1)))
+        kp1_new = kp1_new/kp1_new[2]
+
 
 
         if kp1_new[0]>=0 and kp1_new[0]<=w and kp1_new[1]>=0 and kp1_new[1]<=h:
@@ -81,12 +84,15 @@ def compute_HE(GT_H_mat_param,esti_H_mat_param,kps1,des1,w,h):
     Homo_error = 0
 
 
-    GT_H_mat_param = np.vstack((GT_H_mat_param,np.array((0,0,1))))
+    # GT_H_mat_param = np.vstack((GT_H_mat_param,np.array((0,0,1))))
 
     for i in range(kps1.shape[0]):
         kp1 = kps1[i]
         kp2_new = np.matmul(GT_H_mat_param,np.hstack((kp1,1)))  # 3*1
+        kp2_new = kp2_new/kp2_new[2]
         kp2_new_esti = np.matmul(esti_H_mat_param,np.hstack((kp1,1)))
+        kp2_new_esti = kp2_new_esti/kp2_new_esti[2]
+
         Homo_error += np.linalg.norm(kp2_new_esti-kp2_new)
     # print("the DELTA H is ",float(Homo_error),kps1.shape[0],"\n",esti_H_mat_param,"\n",GT_H_mat_param)
 
@@ -102,7 +108,10 @@ def compute_MA(matches,des1,des2,kps1,kps2,GT_H_mat_param,w,h):
         #[match.queryIdx,kp1[match.queryIdx].pt[0],kp1[match.queryIdx].pt[1],match.trainIdx,kp2[match.trainIdx].pt[0],kp2[match.trainIdx].pt[1],match.distance]
         min_des_dis_idx_in_kps2 = data_row[3]
         kp1 = data_row[1:3]
-        kp1_proj = np.matmul(GT_H_mat_param,np.hstack((kp1,1)))[:2]
+        kp1_proj = np.matmul(GT_H_mat_param,np.hstack((kp1,1)))
+        kp1_proj = (kp1_proj/kp1_proj[2])[:2]
+
+
         min_phy_dis = 100000
         min_phy_dis_idx_in_kps2 = 100000
         if kp1_proj[0]>=0 and kp1_proj[0]<=w and kp1_proj[1]>=0 and kp1_proj[1]<=h: #this can avoid the bordering effect?
@@ -126,39 +135,17 @@ def compute_MA(matches,des1,des2,kps1,kps2,GT_H_mat_param,w,h):
 
 
 
-if __name__=="__main__":
 
-
-    ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
-    new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
-
-    nbr_trd = 5 #[1,2,3,4,5,6pixels] #  a higher trd can is not less strict, consequently the repeatabiltiy gets improved.
-
-    ori_img_paths = os.listdir(ori_img_dir)
-    transform_list = ["rot","scale","blur","illu","mix"]
-    # transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
-
-    rot_list = [10,15,20,80,85,90]
-    scale_list = [0.7,0.8,0.9,1.1,1.2,1.3]
-    blur_list = [2,3,4,5,6,7]
-    illu_list = [0.4,0.6,0.8,1.2,1.4,1.6]
-    mix_list = [str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur) for p_rot,p_scale,p_illu,p_blur in zip(rot_list,scale_list,illu_list,blur_list)]#str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur)
-    transform_params_list = [rot_list,scale_list,blur_list,illu_list,mix_list]
-    methods_list = ["SuperPoint","ORB","GFTT_SIFT","AGAST_SIFT"]
-
-    all_repeatibility_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}  # in the order of M methods  rot:[M values]  ...
-    all_avg_loc_distance_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
-    all_Homo_error_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
-    all_Matching_accuracy_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
+def get_metrics():
 
     for method in methods_list:
-        print("Evaluating all imgs wrt method:  "+method,"\n")
+        print("\n now start to Evaluating all imgs wrt method:  "+method,"...")
 
 
-        repeatibility_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}  # 4 elements wrt to 4 transforms given certrain kps method, each element is a list with length of total imgs
-        avg_loc_distance_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
-        Homo_error_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
-        Matching_accuracy_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"mix":[]}
+        repeatibility_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}  # 4 elements wrt to 4 transforms given certrain kps method, each element is a list with length of total imgs
+        avg_loc_distance_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}
+        Homo_error_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}
+        Matching_accuracy_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}
 
 
 
@@ -176,6 +163,7 @@ if __name__=="__main__":
                 Matches_path = str(new_img_dir)+img_path[:-4]+"//"+transform+"_pair//"+method+"_matches"+".npz"
 
                 kps_des_mat = np.load(kps_des_path)#7
+
                 Hs_esti = np.load(Hs_esti_path,allow_pickle=True)
                 GT_Hs_mat = np.load(GT_Hs_mat_path)#6 #(Path(new_img_dir,f"GT_H_mat.npz"))#+"\\"+transform+"_pair\\"+
                 Matches = np.load(Matches_path)
@@ -203,7 +191,7 @@ if __name__=="__main__":
                     kps2 = kps_des_mat_param[:,:2]
                     des1 = kps_des_mat_ori[:,2:]
                     des2 = kps_des_mat_param[:,2:]
-
+                    # print("now the para is :",param)
                     x1_cnt,x2_cnt,overlap_cnt,repeatibility,avg_loc_distance = compute_repeat_LE(des1,des2,kps1,kps2,GT_H_mat_param,w,h,nbr_trd)#   nbr_thrd can be 1 /2/3 pixels
                     Homo_error = compute_HE(GT_H_mat_param,esti_H_mat_param,kps1,des1,w,h)
                     Matching_accuracy,correct_cnt,num4matches = compute_MA(matches,des1,des2,kps1,kps2,GT_H_mat_param,w,h)
@@ -235,7 +223,7 @@ if __name__=="__main__":
 
         #performance of certain kps method
 
-        print("for method : ",method, " display the metrics for different transformation:  reap LE HE MA ")
+        print("for method : ",method, " display the metrics for different transformation:  reap LE HE MA \n")
         for transform in transform_list:
             avg_rep = np.nanmean(np.array(repeatibility_dict[transform],dtype=np.float64))
             avg_LE = np.nanmean(np.array(avg_loc_distance_dict[transform],dtype=np.float64))
@@ -260,6 +248,44 @@ if __name__=="__main__":
 
 
 
+
+if __name__=="__main__":
+
+
+    ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
+    new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
+
+    # nbr_trd = 5 #[1,2,3,4,5,6] #pixels#  a higher trd can is not less strict, consequently the repeatabiltiy gets improved.
+    nbr_trd_list = [1,2,3,4,5]
+    ori_img_paths = os.listdir(ori_img_dir)
+    transform_list = ["rot","scale","blur","illu","proj","mix"]
+    # transform_params_list = [ [30,60,90,120,150,180], [0.25,0.5,0.75,1.25,1.5,1.75],[2,4,6,8,10,12], [0.4,0.6,0.8,1.2,1.4,1.6]]
+
+    rot_list = [10,15,20,80,85,90]
+    scale_list = [0.7,0.8,0.9,1.1,1.2,1.3]
+    blur_list = [2,3,4,5,6,7]
+    illu_list = [0.4,0.6,0.8,1.2,1.4,1.6]
+    proj_list = [1,2,3,-1,-2,-3]
+
+    mix_list = [str(p_rot)+"_"+str(p_scale)+"_"+str(p_blur)+"_"+str(p_illu)+"_"+str(p_proj) for p_rot,p_scale,p_blur,p_illu,p_proj in zip(rot_list,scale_list,blur_list,illu_list,proj_list)]#str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur)
+    transform_params_list = [rot_list,scale_list,blur_list,illu_list,proj_list,mix_list]
+    methods_list = ["SuperPoint","ORB","AGAST_SIFT","GFTT_SIFT"]
+    transform_list = ["rot","scale","blur","illu","proj","mix"]
+
+
+
+
+    all_repeatibility_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}  # in the order of M methods  rot:[M values]  ...
+    all_avg_loc_distance_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}
+    all_Homo_error_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}
+    all_Matching_accuracy_dict = {"rot":[],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}
+
+    nbr_trd = 5  #  manually change this from 1 to 5 to get five rounds of different hyperparameter
+    get_metrics()
+#why below code didn't work preperly as expected?
+    # for i in nbr_trd_list:
+    #     nbr_trd = i
+    #     get_metrics()
 
 
 

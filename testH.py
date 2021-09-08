@@ -13,9 +13,15 @@ M3 = cv2.getPerspectiveTransform(pts1,pts2)  # 4 pairs
 # print(M2,M3)
 M1 = np.array([1,0,0,
                0,1,0,
-               -0.000,0.00011,1],dtype=np.float64).reshape((3,3))
+               -0.0006,-0.0006,1],dtype=np.float64).reshape((3,3))
 print(M1)
 dst = cv2.warpPerspective(img,M1,(cols,rows))  # Only receive 2*3 affine transformation
 # #
-cv2.imshow("",dst)
-cv2.waitKey(0)
+# cv2.imshow("",dst)
+# cv2.waitKey(0)
+
+kp2_new = np.matmul(M1,np.hstack((3,4,1)))
+print(kp2_new)
+kp2_new = (kp2_new/kp2_new[2])[:2]
+print(kp2_new)
+

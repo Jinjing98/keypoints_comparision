@@ -33,7 +33,7 @@ def create_rot_new(ori_img_paths,ori_img_dir,new_img_dir_general ):
             #  it is the same as get affine transform?
             img_rot = cv2.warpAffine(img,rotate,(x,y))
             cv2.imwrite(str(new_img_dir)+"\\"+str(ang)+".png", img_rot[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
-            GT_H_mat[str(ang)] = rotate
+            GT_H_mat[str(ang)] = np.vstack((rotate,np.array((0,0,1))))
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
 
@@ -52,7 +52,7 @@ def create_scale_new(ori_img_paths,ori_img_dir,new_img_dir_general ):
             rotate = cv2.getRotationMatrix2D((x/2,y/2),0,scale)  # the 3rd row is  0 0 1
             img_scale = cv2.warpAffine(img,rotate,(x,y))
             cv2.imwrite(str(new_img_dir)+"\\"+str(scale)+".png", img_scale[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
-            GT_H_mat[str(scale)] = rotate
+            GT_H_mat[str(scale)] = np.vstack((rotate,np.array((0,0,1))))
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
 
@@ -76,7 +76,7 @@ def create_illu_new(ori_img_paths,ori_img_dir,new_img_dir_general ):# gamma
             img_illu = cv2.LUT(img, table)
             cv2.imwrite(str(new_img_dir)+"\\"+str(gamma)+".png", img_illu[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
             rotate = cv2.getRotationMatrix2D((x/2,y/2),0,1)
-            GT_H_mat[str(gamma)] = rotate
+            GT_H_mat[str(gamma)] = np.vstack((rotate,np.array((0,0,1))))
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
 
@@ -97,7 +97,7 @@ def create_blur_new(ori_img_paths,ori_img_dir,new_img_dir_general ):
             img_blur = cv2.blur(img,size)
             cv2.imwrite(str(new_img_dir)+"\\"+str(size[0])+".png", img_blur[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
             rotate = cv2.getRotationMatrix2D((x/2,y/2),0,1)
-            GT_H_mat[str(size[0])] = rotate  #c
+            GT_H_mat[str(size[0])] = np.vstack((rotate,np.array((0,0,1))))
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
 
@@ -112,13 +112,13 @@ def create_proj_new(ori_img_paths,ori_img_dir,new_img_dir_general ):
         new_img_dir_pair.mkdir(parents = True, exist_ok = True)
 
         y,x = img.shape[:2]
-        for param in proj_list:#[(2,2),(4,4),(6,6),(8,8),(10,10),(12,12)]:
-            # size = (size,size)
-            # img_blur = cv2.blur(img,size)
-            img_proj =
-            cv2.imwrite(str(new_img_dir)+"\\"+str(size[0])+".png", img_proj[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
-            rotate = cv2.getRotationMatrix2D((x/2,y/2),0,1)
-            GT_H_mat[str(size[0])] = rotate
+        for param in proj_list:#
+            H = cv2.getRotationMatrix2D((x/2,y/2),0,1)
+            H = np.vstack((H,np.array(( 0.0001*param,0.0001*param,1))))
+            GT_H_mat[str(param)] = H
+            img_proj = cv2.warpPerspective(img,H,(x,y))
+            cv2.imwrite(str(new_img_dir)+"\\"+str(param)+".png", img_proj[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
+
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
 
@@ -136,8 +136,14 @@ def create_mix_new(ori_img_paths,ori_img_dir,new_img_dir_general):
         new_img_dir_pair.mkdir(parents = True, exist_ok = True)
 
         y,x = img.shape[:2]
-        for p_rot,p_scale,p_illu,p_blur in zip(rot_list,scale_list,illu_list,blur_list):
+        H_unit = cv2.getRotationMatrix2D((x/2,y/2),0,1)
+
+        for p_rot,p_scale,p_illu,p_blur,p_proj in zip(rot_list,scale_list,illu_list,blur_list,proj_list):
             rotate_scale = cv2.getRotationMatrix2D((x/2,y/2),p_rot,p_scale)  # the 3rd row is  0 0 1
+            H_rotate_scale = np.vstack((rotate_scale,np.array(( 0,0,1))))
+            H_proj = np.vstack((H_unit,np.array(( 0.0001*p_proj,0.0001*p_proj,1))))
+            H_rotate_scale_proj = np.matmul(H_proj,H_rotate_scale)
+
             size = (p_blur,p_blur)
             invGamma = 1.0 /p_illu
             table = np.array([((i / 255.0) ** invGamma) * 255
@@ -145,9 +151,10 @@ def create_mix_new(ori_img_paths,ori_img_dir,new_img_dir_general):
 
             blur_img = cv2.blur(img,size)
             blur_illu_img = cv2.LUT(blur_img, table)
-            mix_img = cv2.warpAffine(blur_illu_img,rotate_scale,(x,y))
-            cv2.imwrite(str(new_img_dir)+"\\"+str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur)+".png", mix_img[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
-            GT_H_mat[str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur)] = rotate_scale
+            mix_img = cv2.warpPerspective(img,H_rotate_scale_proj,(x,y))
+            # str(p_rot)+"_"+str(p_scale)+"_"+str(p_blur)+"_"+str(p_illu)+"_"+str(p_proj)
+            cv2.imwrite(str(new_img_dir)+"\\"+str(p_rot)+"_"+str(p_scale)+"_"+str(p_blur)+"_"+str(p_illu)+"_"+str(p_proj) +".png", mix_img[int(y/2)-rec_h_half:int(y/2)+rec_h_half, int(x/2)-rec_w_half:int(x/2)+rec_w_half])#[y:y+h, x:x+w]
+            GT_H_mat[str(p_rot)+"_"+str(p_scale)+"_"+str(p_blur)+"_"+str(p_illu)+"_"+str(p_proj)] = H_rotate_scale_proj
 
         GT_H_mat_path = Path(new_img_dir,f"GT_H_mat.npz")
         np.savez(GT_H_mat_path,**GT_H_mat)
@@ -241,7 +248,6 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
                 dst_pts = matches_np[:,4:6]
 
                 H,status = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC,5.0)
-                # im_out = cv2.warpPerspective(img, H,(img.shape[1],img.shape[0])) #new_img
                 H_mat[str(new_img_param)] = H
 
             else:
@@ -278,9 +284,11 @@ if __name__=="__main__":
     scale_list = [0.7,0.8,0.9,1.1,1.2,1.3]
     blur_list = [2,3,4,5,6,7]
     illu_list = [0.4,0.6,0.8,1.2,1.4,1.6]
-    mix_list = [str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur) for p_rot,p_scale,p_illu,p_blur in zip(rot_list,scale_list,illu_list,blur_list)]#str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur)
-    transform_params_list = [rot_list,scale_list,blur_list,illu_list,mix_list]
-
+    proj_list = [1,2,3,-1,-2,-3]
+    mix_list = [str(p_rot)+"_"+str(p_scale)+"_"+str(p_blur)+"_"+str(p_illu)+"_"+str(p_proj) for p_rot,p_scale,p_blur,p_illu,p_proj in zip(rot_list,scale_list,blur_list,illu_list,proj_list)]#str(p_rot)+"_"+str(p_scale)+"_"+str(p_illu)+"_"+str(p_blur)
+    transform_params_list = [rot_list,scale_list,blur_list,illu_list,proj_list,mix_list]
+    method_list = ["SuperPoint","ORB","AGAST_SIFT","GFTT_SIFT"]
+    transform_list = ["rot","scale","blur","illu","proj","mix"]
 
 
 
@@ -289,6 +297,7 @@ if __name__=="__main__":
     create_scale_new(ori_img_paths,ori_img_dir,new_img_dir)
     create_illu_new(ori_img_paths,ori_img_dir,new_img_dir)
     create_blur_new(ori_img_paths,ori_img_dir,new_img_dir)
+    create_proj_new(ori_img_paths,ori_img_dir,new_img_dir)
     create_mix_new(ori_img_paths,ori_img_dir,new_img_dir)
 
     create_final_ori(ori_img_paths,ori_img_dir,final_ori_img_dir)
@@ -301,8 +310,7 @@ if __name__=="__main__":
 
 
 
-    method_list = ["SuperPoint","ORB","AGAST_SIFT","GFTT_SIFT"]
-    transform_list = ["rot","scale","blur","illu","mix"]
+
 
 
     num_feature = 200
@@ -385,7 +393,7 @@ if __name__=="__main__":
                 matches_mat = {}
                 kps_des_mat[str(0)] = kp1_des1_np
                 for transform,transform_params in zip(transform_list,transform_params_list):
-                    # print(transform,transform_params)
+                    print(transform,transform_params)
                     get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method)
 
 
