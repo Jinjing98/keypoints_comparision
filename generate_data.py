@@ -161,6 +161,10 @@ def create_mix_new(ori_img_paths,ori_img_dir,new_img_dir_general):
 
 
 def create_final_ori(ori_img_paths,ori_img_dir,final_ori_img_dir):
+
+
+    new_img_dir = Path(final_ori_img_dir)
+    new_img_dir.mkdir(parents = True, exist_ok = True)
     for img_path in ori_img_paths:
         img = cv2.imread(ori_img_dir+img_path)
         y,x = img.shape[:2]
@@ -281,7 +285,7 @@ if __name__=="__main__":
     rec_w_half = 128#  e.g. 128
     dict_trd_num_kps2 = 5
     rot_list = [10,15,20,80,85,90]
-    scale_list = [0.7,0.8,0.9,1.1,1.2,1.3]
+    scale_list = [0.7,0.8,0.9,1.1,1.2,1.3]  # zoom out
     blur_list = [2,3,4,5,6,7]
     illu_list = [0.4,0.6,0.8,1.2,1.4,1.6]
     proj_list = [1,2,3,-1,-2,-3]

@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 #all_repeatibility_dict = {"rot":[in the order of ["SuperPoint","ORB","GFTT_SIFT","AGAST_SIFT"]],"scale":[],"illu":[],"blur":[],"proj":[],"mix":[]}
 def visulisation_certain_transform_across_methods(new_img_dir,transform,metric_term):
 
+    # data_across_methods = []  # this is necessary for looping the func, or it would add up itself.
+    data_across_methods =  {0:[],1:[],2:[],3:[]}#{"SuperPoint":[],"ORB":[],"GFTT_SIFT":[],"AGAST_SIFT":[]}
     for nbr_trd in nbr_trd_list:
 
         metric_path = new_img_dir+metric_term+str(nbr_trd)+".npz"
@@ -21,6 +23,7 @@ def visulisation_certain_transform_across_methods(new_img_dir,transform,metric_t
 
     for method_idx,method_name in zip(range(len(data_across_methods)),methods_list):
         x = range(1,6)  #  nbr_trd  1,2,3,4,5,
+        # print("debug:",method_idx,data_across_methods[method_idx])
         plt.plot(x,data_across_methods[method_idx], marker="*",label = str(method_name))
     plt.legend()
     plt.title(transform+" "+metric_term)
@@ -29,7 +32,6 @@ def visulisation_certain_transform_across_methods(new_img_dir,transform,metric_t
 new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
 nbr_trd_list = [1,2,3,4,5]
 methods_list = ["SuperPoint","ORB","GFTT_SIFT","AGAST_SIFT"]
-data_across_methods =  {0:[],1:[],2:[],3:[]}#{"SuperPoint":[],"ORB":[],"GFTT_SIFT":[],"AGAST_SIFT":[]}
 metrics_terms_list = ["all_repeatibility_dict_trd",\
                     "all_avg_loc_distance_dict_trd",\
                     "all_Homo_error_dict_trd",\
@@ -38,6 +40,11 @@ transform_list = ["rot","scale","blur","illu","proj","mix"]
 
 
 
-metric =  "all_avg_loc_distance_dict_trd"#"all_Matching_accuracy_dict_trd"#"all_Homo_error_dict_trd"#"all_avg_loc_distance_dict_trd"#"all_repeatibility_dict_trd"
-transform = "mix"
-visulisation_certain_transform_across_methods(new_img_dir,transform,metric)
+metric = "all_repeatibility_dict_trd"# "all_avg_loc_distance_dict_trd"#"all_Matching_accuracy_dict_trd"#"all_Homo_error_dict_trd"#"all_avg_loc_distance_dict_trd"#"all_repeatibility_dict_trd"
+transform = "scale"
+# visulisation_certain_transform_across_methods(new_img_dir,transform,metric)
+
+for metric in metrics_terms_list:
+    for transform in transform_list:
+        print(metric,transform,new_img_dir)
+        visulisation_certain_transform_across_methods(new_img_dir,transform,metric)

@@ -283,9 +283,9 @@ if __name__=="__main__":
     nbr_trd = 5  #  manually change this from 1 to 5 to get five rounds of different hyperparameter
     get_metrics()
 #why below code didn't work preperly as expected?
-    # for i in nbr_trd_list:
-    #     nbr_trd = i
-    #     get_metrics()
+# for i in nbr_trd_list:
+#     nbr_trd = i
+#     get_metrics()
 
 
 
