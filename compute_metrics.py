@@ -252,8 +252,11 @@ def get_metrics():
 if __name__=="__main__":
 
 
-    ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
-    new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
+
+
+    ori_img_dir = "/home/jinjing/Projects/keypoints_comparision/data/final_ori_imgs/"
+
+    new_img_dir = "/home/jinjing/Projects/keypoints_comparision/data/out_imgs/"
 
     # nbr_trd = 5 #[1,2,3,4,5,6] #pixels#  a higher trd can is not less strict, consequently the repeatabiltiy gets improved.
     nbr_trd_list = [1,2,3,4,5]
