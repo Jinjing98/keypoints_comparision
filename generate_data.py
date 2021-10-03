@@ -14,11 +14,12 @@ import numpy as np
 import tensorflow.compat.v1 as tf
 tf.disable_v2_behavior()
 from match_features_demo import  extract_superpoint_keypoints_and_descriptors, preprocess_image
-
+#comment below line of code, the code will run in GPU mode
 # # this line of code will let the code to run on CPU, but this have to be in the very beginning of the code
-tf.config.set_visible_devices([], 'GPU')
+# tf.config.set_visible_devices([], 'GPU')
 #
 #
+#below line of code will display the log for debug to see if it is real GPU
 # To find out which devices your operations and tensors are assigned to
 # tf.debugging.set_log_device_placement(True)
 
@@ -311,18 +312,13 @@ def get_kp_des_match(transform,transform_params,kp1_des1_np,kp1,des1,method):
 
 if __name__=="__main__":
 
-    ori_img_dir = r"E:\Datasets\surgical\ori_imgs\\"
-
-    new_img_dir = r"E:\Datasets\surgical\out_imgs\\"
-    final_ori_img_dir = r"E:\Datasets\surgical\final_ori_imgs\\"
-    EXPER_PATH=r'E:\Google Drive\\files.sem3\NCT\Reuben_lab\keypoint_detector_descriptor_evaluator-main\models\SuperPoint\pretrained_models'
-
+ 
 
     
-    ori_img_dir = "/home/jinjing/Projects/keypoints_comparision/data/ori_imgs"
+    ori_img_dir = "/home/jinjing/Projects/data/ori_imgs"
 
-    new_img_dir = "/home/jinjing/Projects/keypoints_comparision/data/out_imgs"
-    final_ori_img_dir = "/home/jinjing/Projects/keypoints_comparision/data/final_ori_imgs"
+    new_img_dir = "/home/jinjing/Projects/data/out_imgs"
+    final_ori_img_dir = "/home/jinjing/Projects/data/final_ori_imgs"
     EXPER_PATH="/media/jinjing/New Volume/google_drive/files.sem3/NCT/Reuben_lab/keypoint_detector_descriptor_evaluator-main/models/SuperPoint/pretrained_models"
     
     
